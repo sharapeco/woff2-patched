@@ -1,11 +1,11 @@
 //! The WOFF2 table directory
 
-use bytes::Buf;
+use bytes::{Buf, TryGetError};
 use four_cc::FourCC;
 use thiserror::Error;
 
 use crate::{
-    buffer_util::{pad_to_multiple_of_four, Base128Error, BufExt, SafeBuf, TruncatedError},
+    buffer_util::{pad_to_multiple_of_four, Base128Error, BufExt, TruncatedError},
     checksum::{calculate_checksum, set_checksum_adjustment, ChecksumError},
     glyf_decoder::{decode_glyf_table, GlyfDecoderError},
     ttf_header::TableRecord,
@@ -25,6 +25,12 @@ impl From<Base128Error> for TableDirectoryError {
             Base128Error::Truncated => TableDirectoryError::Truncated,
             _ => TableDirectoryError::InvalidNumeric,
         }
+    }
+}
+
+impl From<TryGetError> for TableDirectoryError {
+    fn from(_: TryGetError) -> Self {
+        TableDirectoryError::Truncated
     }
 }
 

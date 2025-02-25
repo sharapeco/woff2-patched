@@ -1,8 +1,7 @@
 use std::io::{Cursor, Write};
 
 use bitvec::{order::Msb0, slice::BitSlice};
-use bytes::{Buf, BufMut};
-use safer_bytes::{error::Truncated, SafeBuf};
+use bytes::{Buf, BufMut, TryGetError};
 use thiserror::Error;
 
 use crate::buffer_util::{pad_to_multiple_of_four, BufExt};
@@ -20,8 +19,8 @@ pub enum GlyfDecoderError {
     ExtraData,
 }
 
-impl From<Truncated> for GlyfDecoderError {
-    fn from(_: Truncated) -> Self {
+impl From<TryGetError> for GlyfDecoderError {
+    fn from(_: TryGetError) -> Self {
         GlyfDecoderError::Truncated
     }
 }

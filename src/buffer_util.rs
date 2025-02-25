@@ -1,4 +1,4 @@
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, TryGetError};
 use four_cc::FourCC;
 pub use safer_bytes::{error::Truncated as TruncatedError, SafeBuf};
 use thiserror::Error;
@@ -23,14 +23,14 @@ impl From<TruncatedError> for Base128Error {
 
 pub trait BufExt {
     fn get_four_cc(&mut self) -> FourCC;
-    fn try_get_four_cc(&mut self) -> Result<FourCC, TruncatedError>;
+    fn try_get_four_cc(&mut self) -> Result<FourCC, TryGetError>;
     fn try_get_base_128(&mut self) -> Result<u32, Base128Error>;
-    fn try_get_255_u16(&mut self) -> Result<u16, TruncatedError>;
+    fn try_get_255_u16(&mut self) -> Result<u16, TryGetError>;
     fn try_copy_to_buf<T: BufMut>(
         &mut self,
         dest: &mut T,
         num_bytes: usize,
-    ) -> Result<(), TruncatedError>;
+    ) -> Result<(), TryGetError>;
 }
 
 impl<B> BufExt for B
@@ -43,9 +43,12 @@ where
         FourCC(dest)
     }
 
-    fn try_get_four_cc(&mut self) -> Result<FourCC, TruncatedError> {
+    fn try_get_four_cc(&mut self) -> Result<FourCC, TryGetError> {
         if self.remaining() < 4 {
-            Err(TruncatedError)
+            Err(TryGetError {
+                requested: 4,
+                available: self.remaining(),
+            })
         } else {
             Ok(self.get_four_cc())
         }
@@ -54,7 +57,7 @@ where
     fn try_get_base_128(&mut self) -> Result<u32, Base128Error> {
         let mut accum = 0u32;
         for i in 0..5 {
-            let byte = self.try_get_u8()?;
+            let byte = self.try_get_u8().map_err(|_| Base128Error::Truncated)?;
             // no leading 0s
             if i == 0 && byte == 0x80 {
                 return Err(Base128Error::LeadingZero);
@@ -71,7 +74,7 @@ where
         Err(Base128Error::MoreThan5Bytes)
     }
 
-    fn try_get_255_u16(&mut self) -> Result<u16, TruncatedError> {
+    fn try_get_255_u16(&mut self) -> Result<u16, TryGetError> {
         const ONE_MORE_BYTE_CODE_1: u8 = 255;
         const ONE_MORE_BYTE_CODE_2: u8 = 254;
         const WORD_CODE: u8 = 253;
@@ -89,9 +92,12 @@ where
         &mut self,
         dest: &mut T,
         mut num_bytes: usize,
-    ) -> Result<(), TruncatedError> {
+    ) -> Result<(), TryGetError> {
         if self.remaining() < num_bytes {
-            return Err(TruncatedError);
+            return Err(TryGetError {
+                requested: num_bytes,
+                available: self.remaining(),
+            });
         }
         loop {
             let chunk = self.chunk();
