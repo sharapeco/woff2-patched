@@ -91,8 +91,11 @@ impl<'a> Woff2GlyfDecoder<'a, &'a [u8]> {
         let instruction_stream_size = table_buf.get_u32();
         assert_eq!(table_buf.position() as usize, GLYF_HEADER_SIZE);
         let has_overlap_bit_stream = (option_flags & 0x01) == 0x01;
-        let overlap_simple_bit_stream_size = if has_overlap_bit_stream {
-            bit_stream_byte_length(num_glyphs)
+        // Spec: overlapSimpleBitmap = ceil(numGlyphs/8) bytes, no 4-byte padding.
+        // Unlike bboxBitmap, this bitmap sits at the very end of the table so
+        // alignment padding is not required.
+        let overlap_simple_bit_stream_size: usize = if has_overlap_bit_stream {
+            (num_glyphs as usize + 7) >> 3
         } else {
             0
         };
@@ -107,7 +110,7 @@ impl<'a> Woff2GlyfDecoder<'a, &'a [u8]> {
         let instruction_stream_start = bbox_stream_start + bbox_stream_size as usize;
         let overlap_bit_stream_start = instruction_stream_start + instruction_stream_size as usize;
         let overlap_bit_stream_end =
-            overlap_bit_stream_start + overlap_simple_bit_stream_size as usize;
+            overlap_bit_stream_start + overlap_simple_bit_stream_size;
         if transformed_glyf_table.len() < overlap_bit_stream_end {
             return Err(GlyfDecoderError::Truncated);
         }
@@ -131,8 +134,7 @@ impl<'a> Woff2GlyfDecoder<'a, &'a [u8]> {
         );
         let overlap_bitmap = if has_overlap_bit_stream {
             Some(BitSlice::<_, Msb0>::from_slice(
-                &transformed_glyf_table[overlap_bit_stream_start
-                    ..overlap_bit_stream_start + overlap_simple_bit_stream_size as usize],
+                &transformed_glyf_table[overlap_bit_stream_start..overlap_bit_stream_end],
             ))
         } else {
             None
