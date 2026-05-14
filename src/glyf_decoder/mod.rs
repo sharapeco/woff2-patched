@@ -182,6 +182,7 @@ impl<'a> Woff2GlyfDecoder<'a, &'a [u8]> {
         let mut x = 0i16;
         let mut y = 0i16;
 
+        let mut first_point = true;
         for _contour_index in 0..number_of_contours {
             let number_of_points = self.n_points_stream.try_get_255_u16()?;
             running_total_points += number_of_points;
@@ -249,13 +250,17 @@ impl<'a> Woff2GlyfDecoder<'a, &'a [u8]> {
                     }
                 };
 
+                // OVERLAP_SIMPLE (bit 6) must only be set on the first point of the glyph
+                let this_point_overlap_flag = if first_point { overlap_simple_flag } else { 0x00 };
+                first_point = false;
+
                 flags_stream.put_u8(
                     on_curve_flag
                         | x_short_vector_flag
                         | y_short_vector_flag
                         | x_is_same_flag
                         | y_is_same_flag
-                        | overlap_simple_flag,
+                        | this_point_overlap_flag,
                 );
             }
         }
